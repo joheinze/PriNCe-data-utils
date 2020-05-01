@@ -7,9 +7,9 @@ gives everybody access to change all the details of these data or add new models
 
 These tools were developed and used mainly in [Heinze et al., Astrophys.J. 873 (2019)](https://doi.org/10.3847/1538-4357/ab05ce)
 
-## Software requirements
+## Requirements
 
-The majority of the code consists of pure Python modules.
+This is a light pure python code. No specific architecture requirements.
 
 Dependencies (list might be incomplete):
 
@@ -19,12 +19,12 @@ Dependencies (list might be incomplete):
 - scipy
 - matplotlib
 - astropy
+- hdf5py
 - jupyter notebook or jupyter lab (optional, but needed for the plotting example)
-- Cluster running on Univa grid engine (for other clusters adjust `analyzer.cluster.template_submit` and all calls to `qsub` in `analyzer.cluster`)
 
 ## Usage
 
-The main file will generate an HDF database file that can be copied to prince-dir/prince/data
+The main script will generate an HDF database file that can be copied to prince-dir/prince/data
 
 ## Experimenting with data
 
