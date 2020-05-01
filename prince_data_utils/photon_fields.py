@@ -1,3 +1,14 @@
+"""Construction of a 2D interpolation of $n_{\gamma}(E,z)$
+
+Problematic for some classes are different energy grids
+for each point provided in $z$. Therefore, the approach is then two-staged:
+- construct interpolator $g(E,z)$ for a ``grid index``
+- use this interpolator to construct the $n_\gamma(g(E,z),z)$
+
+The result is an scipy.interpolate.interp2d object that can be stored by pickle.
+
+"""
+
 from os.path import join
 import numpy as np
 from scipy.interpolate import interp1d, interp2d
@@ -127,44 +138,44 @@ class Francescini2008(EBLPhotonField):
              6.79917, 6.4118, 6.084, 5.7183, 5.5404, 5.4247, 5.0124, 4.228]]
         ).astype('float64')
 
-    def _construct_splines(self):
-
-        z_e_splines = []
-        z_n_splines = []
+        self.z_e_splines = []
+        self.z_n_splines = []
         for i in range(11):
-            z_e_splines.append(
+            self.z_e_splines.append(
                 interp1d(self.energy[i, :], np.arange(2, 33, dtype='float64'),
                          fill_value="extrapolate", bounds_error=False, kind='linear'))
-            z_n_splines.append(
+            self.z_n_splines.append(
                 interp1d(np.arange(2, 33, dtype='float64'), self.ph_density[i, :],
                          fill_value="extrapolate", bounds_error=False, kind='linear'))
 
-        common_evec = np.logspace(
+        self.common_evec = np.logspace(
             np.log10(min(self.energy[:, 0])), np.log10(max(self.energy[:, -1])), 250)
 
         # 3D interpolation of grid idx function g(E, z)
         # Z values of the tables (spacing from paper)
-        z_dist = np.arange(0, 2.1, 0.2)
+        self.z_dist = np.arange(0, 2.1, 0.2)
         z_map = {}
-        for zi, z in enumerate(z_dist):
+        for zi, z in enumerate(self.z_dist):
             z_map[z] = zi
 
-        ee, zzi = np.meshgrid(common_evec, z_dist)
+        ee, zzi = np.meshgrid(self.common_evec, self.z_dist)
 
         def ngamma(e, z):
             zi = z_map[z]
             if e < self.energy[zi][0] or e > self.energy[zi][-1]:
                 return 0
-            return z_n_splines[z_map[z]](z_e_splines[z_map[z]](e))
+            return self.z_n_splines[z_map[z]](self.z_e_splines[z_map[z]](e))
 
         vec_ng = np.vectorize(ngamma)
 
-        ng_values = vec_ng(ee, zzi)
+        self.ng_values = vec_ng(ee, zzi)
 
-        self.spl2D = [
-            ("Franceschini", interp2d(common_evec,
-                                      z_dist, ng_values, fill_value=0., kind='linear'))
-        ]
+    def get_splines(self):
+
+        return {
+            "base": interp2d(self.common_evec,
+                             self.z_dist, self.ng_values, fill_value=0., kind='linear')
+        }
 
 
 class Inoue2013(EBLPhotonField):
@@ -215,7 +226,7 @@ class Inoue2013(EBLPhotonField):
         self.ph_density_lower = 10**np.loadtxt(
             join(resource_path, 'photon_spectra', 'EBL_inoue_low_pop3.dat'))
 
-    def _construct_splines(self):
+    def get_splines(self):
         # 3D interpolation of grid idx function g(E, z)
         z_map = {}
         for zi, z in zip(np.arange(110), self.z_dist):
@@ -230,14 +241,14 @@ class Inoue2013(EBLPhotonField):
         ngamma_upper = np.vectorize(lambda e, z: np.interp(
             e, self.energy, self.ph_density_upper[z_map[z], :]))
 
-        self.spl2D = [
-            ("Inoue_base", interp2d(
-                self.energy, self.z_dist, ngamma_base(ee, zzi), fill_value=0., kind='linear')),
-            ("Inoue_lower", interp2d(
-                self.energy, self.z_dist, ngamma_lower(ee, zzi), fill_value=0., kind='linear')),
-            ("Inoue_upper", interp2d(
-                self.energy, self.z_dist, ngamma_upper(ee, zzi), fill_value=0., kind='linear'))
-        ]
+        return {
+            "base": interp2d(
+                self.energy, self.z_dist, ngamma_base(ee, zzi), fill_value=0., kind='linear'),
+            "lower": interp2d(
+                self.energy, self.z_dist, ngamma_lower(ee, zzi), fill_value=0., kind='linear'),
+            "upper": interp2d(
+                self.energy, self.z_dist, ngamma_upper(ee, zzi), fill_value=0., kind='linear')
+        }
 
 
 class Gilmore2011(EBLPhotonField):
@@ -276,13 +287,13 @@ class Gilmore2011(EBLPhotonField):
                                 6.0,
                                 7.0])
         self.fixed = np.loadtxt(
-            join(resource_path, 'photon_spectra', 'eblflux_fixed.dat'), skiprows=1)
+            join(resource_path, 'photon_spectra', 'EBL_gilmore_fixed.dat'), skiprows=1)
         self.fiducial = np.loadtxt(
-            join(resource_path, 'photon_spectra', 'eblflux_fiducial.dat'), skiprows=1)
+            join(resource_path, 'photon_spectra', 'EBL_gilmore_fiducial.dat'), skiprows=1)
 
-        z_map_gilmore = {}
+        self.z_map = {}
         for zi, z in enumerate(self.z_dist):
-            z_map_gilmore[z] = zi
+            self.z_map[z] = zi
 
         # convert the flux to a photon flux $F = \frac{E}{dA dt d\lambda d\Omega}$
         # to an energy density $N = \frac{E}{dV dE}$ using the formula:
@@ -310,18 +321,18 @@ class Gilmore2011(EBLPhotonField):
         # also divide by energy for spectral density
         self.fiducial_density /= self.fiducial_energy[:, np.newaxis]
 
-    def _construct_splines(self):
+    def get_splines(self):
 
-        self.spl2D = [
-            ("Gilmore_fixed", interp2d(self.fixed_energy, self.z_dist,
-                                       self.fixed_density.T, fill_value=0., kind='linear')),
-            ("Gilmore_fiducial", interp2d(self.fiducial_energy, self.z_dist,
-                                          self.fiducial_density.T, fill_value=0., kind='linear')),
-        ]
+        return {
+            "fixed": interp2d(self.fixed_energy, self.z_dist,
+                              self.fixed_density.T, fill_value=0., kind='linear'),
+            "fiducial": interp2d(self.fiducial_energy, self.z_dist,
+                                 self.fiducial_density.T, fill_value=0., kind='linear'),
+        }
 
 
 class Dominguez2010(EBLPhotonField):
-    """From 
+    """From
     Extragalactic background light inferred from AEGIS galaxy-SED-type fractions",
     A. Dominguez et al., 2011, MNRAS, 410, 2556, arXiv:1007.1459
 
@@ -339,9 +350,9 @@ class Dominguez2010(EBLPhotonField):
         self.upper = np.loadtxt('./ebl_upper_uncertainties_dominguez11.out')
         self.lower = np.loadtxt('./ebl_lower_uncertainties_dominguez11.out')
 
-        z_map = {}
+        self.z_map = {}
         for zi, z in enumerate(self.z_dist):
-            z_map[z] = zi
+            self.z_map[z] = zi
 
         # convert to
         # 1st column: energy in <GeV>
@@ -383,13 +394,13 @@ class Dominguez2010(EBLPhotonField):
         # also divide by energy for spectral density
         self.lower_density /= self.lower_energy[:, np.newaxis]
 
-    def _construct_splines(self):
+    def get_splines(self):
 
-        self.spl2D = [
-            ("Dominguez_base", interp2d(self.energy, self.z_dist,
-                                        self.density.T, fill_value=0., kind='linear')),
-            ("Dominguez_upper", interp2d(self.upper_energy, self.z_dist,
-                                         self.upper_density.T, fill_value=0., kind='linear')),
-            ("Dominguez_lower", interp2d(self.lower_energy, self.z_dist,
-                                         self.lower_density.T, fill_value=0., kind='linear')),
-        ]
+        return {
+            "base": interp2d(self.energy, self.z_dist,
+                             self.density.T, fill_value=0., kind='linear'),
+            "upper": interp2d(self.upper_energy, self.z_dist,
+                              self.upper_density.T, fill_value=0., kind='linear'),
+            "lower": interp2d(self.lower_energy, self.z_dist,
+                              self.lower_density.T, fill_value=0., kind='linear'),
+        }
