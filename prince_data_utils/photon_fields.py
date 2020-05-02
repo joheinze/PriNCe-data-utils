@@ -346,9 +346,12 @@ class Dominguez2010(EBLPhotonField):
 
         self.z_dist = np.array([0, 0.01, 0.03, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5,
                                 0.6, 0.8, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 3.9])
-        self.base = np.loadtxt('./ebl_dominguez11.out')
-        self.upper = np.loadtxt('./ebl_upper_uncertainties_dominguez11.out')
-        self.lower = np.loadtxt('./ebl_lower_uncertainties_dominguez11.out')
+        self.base = np.loadtxt(
+            join(resource_path, 'photon_spectra', 'EBL_dominguez11.out'))
+        self.upper = np.loadtxt(
+            join(resource_path, 'photon_spectra', 'EBL_dominguez11_upper_uncertainties.out'))
+        self.lower = np.loadtxt(
+            join(resource_path, 'photon_spectra', 'EBL_dominguez11_lower_uncertainties.out'))
 
         self.z_map = {}
         for zi, z in enumerate(self.z_dist):
