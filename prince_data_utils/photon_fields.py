@@ -11,14 +11,35 @@ The result is an scipy.interpolate.interp2d object that can be stored by pickle.
 
 from os.path import join
 import numpy as np
+from abc import ABCMeta, abstractmethod
 from scipy.interpolate import interp1d, interp2d
 import scipy.constants as sconst
 from astropy import units as u
 from prince_data_utils import resource_path
 
 
-class EBLPhotonField(object):
-    pass
+class EBLPhotonField(object, metaclass=ABCMeta):
+    """This metaclass enforces that each photon field
+    implements :func:get_xyz() that returns a dictionary for
+    subsets of flux tables that can be used by get_splines().
+    """
+
+    @abstractmethod
+    def get_xyz(self):
+        """This function returns a dictionary with data series names as keys and
+        tuple (x, y, z) that can be used to construct the 2D splines using
+        :class:`scipy.interpolate.interp2d`."""
+        pass
+
+    def get_splines(self):
+        """Returns a dictionary of 2D spline objects, where the key is a label
+        for a specific dataset and value a spline of type :class:`scipy.interpolate.interp2d`.
+        """
+        spl_d = {}
+        xyz_d = self.get_xyz()
+        for k in xyz_d:
+            spl_d[k] = interp2d(*xyz_d[k], fill_value=0., kind='linear')
+        return spl_d
 
 
 class Francescini2008(EBLPhotonField):
@@ -170,11 +191,13 @@ class Francescini2008(EBLPhotonField):
 
         self.ng_values = vec_ng(ee, zzi)
 
-    def get_splines(self):
+    def get_xyz(self):
+        """This function returns a dictionary with data series names as keys and
+        tuple (x, y, z) that can be used to construct the 2D splines using
+        scipy.interpolate.interp2d."""
 
         return {
-            "base": interp2d(self.common_evec,
-                             self.z_dist, self.ng_values, fill_value=0., kind='linear')
+            "base": (self.common_evec, self.z_dist, self.ng_values)
         }
 
 
@@ -226,7 +249,7 @@ class Inoue2013(EBLPhotonField):
         self.ph_density_lower = 10**np.loadtxt(
             join(resource_path, 'photon_spectra', 'EBL_inoue_low_pop3.dat'))
 
-    def get_splines(self):
+    def get_xyz(self):
         # 3D interpolation of grid idx function g(E, z)
         z_map = {}
         for zi, z in zip(np.arange(110), self.z_dist):
@@ -242,12 +265,9 @@ class Inoue2013(EBLPhotonField):
             e, self.energy, self.ph_density_upper[z_map[z], :]))
 
         return {
-            "base": interp2d(
-                self.energy, self.z_dist, ngamma_base(ee, zzi), fill_value=0., kind='linear'),
-            "lower": interp2d(
-                self.energy, self.z_dist, ngamma_lower(ee, zzi), fill_value=0., kind='linear'),
-            "upper": interp2d(
-                self.energy, self.z_dist, ngamma_upper(ee, zzi), fill_value=0., kind='linear')
+            "base": (self.energy, self.z_dist, ngamma_base(ee, zzi)),
+            "lower": (self.energy, self.z_dist, ngamma_lower(ee, zzi)),
+            "upper": (self.energy, self.z_dist, ngamma_upper(ee, zzi))
         }
 
 
@@ -321,13 +341,11 @@ class Gilmore2011(EBLPhotonField):
         # also divide by energy for spectral density
         self.fiducial_density /= self.fiducial_energy[:, np.newaxis]
 
-    def get_splines(self):
+    def get_xyz(self):
 
         return {
-            "fixed": interp2d(self.fixed_energy, self.z_dist,
-                              self.fixed_density.T, fill_value=0., kind='linear'),
-            "fiducial": interp2d(self.fiducial_energy, self.z_dist,
-                                 self.fiducial_density.T, fill_value=0., kind='linear'),
+            "fixed": (self.fixed_energy, self.z_dist, self.fixed_density.T),
+            "fiducial": (self.fiducial_energy, self.z_dist, self.fiducial_density.T),
         }
 
 
@@ -397,13 +415,10 @@ class Dominguez2010(EBLPhotonField):
         # also divide by energy for spectral density
         self.lower_density /= self.lower_energy[:, np.newaxis]
 
-    def get_splines(self):
+    def get_xyz(self):
 
         return {
-            "base": interp2d(self.energy, self.z_dist,
-                             self.density.T, fill_value=0., kind='linear'),
-            "upper": interp2d(self.upper_energy, self.z_dist,
-                              self.upper_density.T, fill_value=0., kind='linear'),
-            "lower": interp2d(self.lower_energy, self.z_dist,
-                              self.lower_density.T, fill_value=0., kind='linear'),
+            "base": (self.energy, self.z_dist, self.density.T),
+            "upper": (self.upper_energy, self.z_dist, self.upper_density.T),
+            "lower": (self.lower_energy, self.z_dist, self.lower_density.T),
         }

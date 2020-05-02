@@ -1,3 +1,4 @@
 .vscode
 *-checkpoint.ipynb
 *.pyc
+*.h5
