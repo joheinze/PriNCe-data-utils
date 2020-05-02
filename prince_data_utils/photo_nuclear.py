@@ -65,7 +65,7 @@ class CrossSectionsFromAscii(object):
 
         f_root = join(resource_path, 'photo-nuclear',f_root)
         info(0, 'Loading files', f_root + '*')
-        self.energy_grid = np.loadtxt(f_root + 'egrid.dat.bz2')
+        self.energy_grid = np.loadtxt(f_root + 'egrid.dat.bz2')*1e-3 # to GeV
         self._inel_cs_tables = np.loadtxt(f_root + 'nonel.dat.bz2')
         self._inel_fragment_yields = np.loadtxt(f_root + 'incl_i_j.dat.bz2')
 
