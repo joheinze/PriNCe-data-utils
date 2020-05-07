@@ -123,7 +123,7 @@ class PhotoMesonCSFromPickle(CrossSectionsFromAscii):
         channels_proton = np.stack(
             [np.full(daughters_proton.shape, 101), daughters_proton],axis=1)
         channels_neutron = np.stack(
-            [np.full(daughters_neutron.shape, 101), daughters_neutron],axis=1)
+            [np.full(daughters_neutron.shape, 100), daughters_neutron],axis=1)
         self.mothers_daughters = np.concatenate(
             [channels_proton, channels_neutron])
         # Fragments in raw data are in dn/dx, but we need dsigma/dx = dn/dx * sigma
