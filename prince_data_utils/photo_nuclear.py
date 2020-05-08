@@ -83,7 +83,6 @@ class CrossSectionsFromAscii(object):
         self.mothers_daughters = self._inel_fragment_yields[:,0:2].astype('int')
         self.fragment_yields = self._inel_fragment_yields[:,2:]*1e-27 #mbarn -> cm2
         
-
     def _check_consistency(self):
         """Some cross checks for dimenstions and consistency between
         inelastic cross sections and yields are performed."""
@@ -93,3 +92,42 @@ class CrossSectionsFromAscii(object):
 
         assert self.mothers_daughters.shape[0] == self.fragment_yields.shape[0]
         assert self.energy_grid.shape[0] == self.fragment_yields.shape[1]
+
+class PhotoMesonCSFromPickle(CrossSectionsFromAscii):
+
+    def _load(self, f_root_):
+        """Load from pickled dictionaries"""
+
+        f_root = join(resource_path, 'photo-meson',f_root_)
+        info(0, 'Loading files', f_root + '*')
+        raw_csec = np.load(f_root + 'crosssec.npy',allow_pickle=True)
+        energy, csec_proton, csec_neutron = raw_csec
+        csec = np.load(f_root + 'redistribution_logbins.npy',allow_pickle=True)
+        energy_redist, xbins, redist_proton, redist_neutron = csec
+
+        # sophia crossections are in mubarn; convert here to cm^2
+        csec_proton, csec_neutron = csec_proton * 1e-30, csec_neutron * 1e-30
+
+        daughters_proton = np.array(list(redist_proton.keys()))
+        fragments_proton = np.array(list(redist_proton.values()))
+        daughters_neutron = np.array(list(redist_neutron.keys()))
+        fragments_neutron = np.array(list(redist_neutron.values()))
+
+        assert np.all(energy == energy_redist)
+        assert xbins.shape[0]-1 == fragments_proton.shape[-1] == fragments_neutron.shape[-1]
+
+        self.energy_grid = energy
+        self.xbins = xbins
+        self.inel_mothers = np.array([101, 100])
+        self.inelastic_cross_sctions = np.stack([csec_proton, csec_neutron])
+        channels_proton = np.stack(
+            [np.full(daughters_proton.shape, 101), daughters_proton],axis=1)
+        channels_neutron = np.stack(
+            [np.full(daughters_neutron.shape, 100), daughters_neutron],axis=1)
+        self.mothers_daughters = np.concatenate(
+            [channels_proton, channels_neutron])
+        # Fragments in raw data are in dn/dx, but we need dsigma/dx = dn/dx * sigma
+        self.fragment_yields = np.concatenate([
+            fragments_proton * csec_proton[None,:,None],
+            fragments_neutron * csec_neutron[None,:,None]
+        ])
