@@ -1,0 +1,6 @@
+prince_cr
+particletools
+numpy
+scipy
+astropy
+six
